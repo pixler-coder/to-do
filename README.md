@@ -125,6 +125,4 @@ to-do/
 
 ---
 
-## License
 
-This project is part of the **SkillCraft** learning program.
