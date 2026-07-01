@@ -6,6 +6,8 @@
     <title>NeoTask — Minimalist Task Manager</title>
     <meta name="description" content="A premium, distraction-free task manager with a Neo-Minimalist design philosophy.">
     <meta name="theme-color" content="#FAF7F2">
+    <meta name="robots" content="index, follow">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self';">
     <!-- Google Fonts for Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -75,6 +77,12 @@
         </main>
     </div>
 
+    <noscript>
+        <div class="noscript-fallback">
+            <h2>JavaScript Required</h2>
+            <p>NeoTask requires JavaScript to function. Please enable it in your browser settings.</p>
+        </div>
+    </noscript>
     <script src="app.js"></script>
 </body>
 </html>

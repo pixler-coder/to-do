@@ -11,7 +11,8 @@ A premium, distraction-free task manager built with a **Neo-Minimalist** design 
 - **Filtering** — View All, Active, or Completed tasks per space
 - **Full CRUD** — Create, read, update, and delete both tasks and spaces
 - **Responsive UI** — Clean sidebar + workspace layout with Inter typography
-- **Security Hardened** — CORS restrictions, security headers, and global error handling
+- **Security Hardened** — CORS restrictions, CSP headers, and global error handling
+- **Production Ready** — Structured logging, health checks, Docker support, and test suite
 
 ---
 
@@ -22,8 +23,11 @@ A premium, distraction-free task manager built with a **Neo-Minimalist** design 
 | Backend   | **FastAPI** (Python)                |
 | Database  | **SQLite** via **SQLAlchemy** ORM   |
 | Schemas   | **Pydantic v2**                     |
-| Server    | **Uvicorn** (ASGI)                  |
+| Config    | **Pydantic Settings** + `.env`      |
+| Server    | **Gunicorn** + **Uvicorn** workers  |
 | Frontend  | **Vanilla HTML / CSS / JavaScript** |
+| Testing   | **pytest** + **httpx**              |
+| Container | **Docker**                          |
 | Font      | [Inter](https://fonts.google.com/specimen/Inter) (Google Fonts) |
 
 ---
@@ -56,7 +60,14 @@ source venv/bin/activate   # macOS / Linux
 pip install -r requirements.txt
 ```
 
-### 4. Run the development server
+### 4. Configure the environment
+
+```bash
+cp .env.example .env
+# Edit .env to customize settings (database URL, CORS origins, etc.)
+```
+
+### 5. Run the development server
 
 ```bash
 uvicorn backend.main:app --reload
@@ -68,9 +79,73 @@ The app will be available at **[http://127.0.0.1:8000](http://127.0.0.1:8000)**.
 
 ---
 
+## Environment Configuration
+
+All settings are configurable via environment variables or a `.env` file. See [`.env.example`](.env.example) for the full list.
+
+| Variable          | Default                                          | Description                              |
+|-------------------|--------------------------------------------------|------------------------------------------|
+| `DATABASE_URL`    | `sqlite:///./todo.db`                            | Database connection string               |
+| `ALLOWED_ORIGINS` | `http://127.0.0.1:8000,http://localhost:8000`    | Comma-separated CORS origins             |
+| `DEBUG`           | `true`                                           | Enables Swagger UI and ReDoc             |
+| `LOG_LEVEL`       | `INFO`                                           | Logging verbosity                        |
+
+---
+
+## Running Tests
+
+```bash
+python -m pytest backend/tests/ -v
+```
+
+Tests use an in-memory SQLite database and are fully isolated — no external services required.
+
+---
+
+## Docker Deployment
+
+### Build and run
+
+```bash
+docker build -t neotask .
+docker run -p 8000:8000 -e DEBUG=false neotask
+```
+
+### With persistent data
+
+```bash
+docker run -p 8000:8000 \
+  -v neotask-data:/app/data \
+  -e DEBUG=false \
+  -e DATABASE_URL=sqlite:///./data/todo.db \
+  neotask
+```
+
+---
+
+## Production Deployment
+
+For production, it is recommended to:
+
+1. Set `DEBUG=false` to disable interactive API docs
+2. Configure `ALLOWED_ORIGINS` to your actual domain(s)
+3. Use the Docker image with Gunicorn (automatic — see Dockerfile)
+4. Place behind a reverse proxy (nginx, Caddy) for TLS termination
+5. Use a persistent volume for the SQLite database (or migrate to PostgreSQL)
+
+The health check endpoint `GET /api/health` can be used by load balancers and container orchestrators.
+
+---
+
 ## API Reference
 
 Base URL: `http://127.0.0.1:8000`
+
+### Health
+
+| Method | Endpoint       | Description                      |
+|--------|----------------|----------------------------------|
+| `GET`  | `/api/health`  | Health check (DB connectivity)   |
 
 ### Lists (Spaces)
 
@@ -99,7 +174,7 @@ Base URL: `http://127.0.0.1:8000`
 | `skip`         | int     | Pagination offset (default `0`)          |
 | `limit`        | int     | Max results, 1–200 (default `100`)       |
 
-Interactive API docs are available at **[/docs](http://127.0.0.1:8000/docs)** (Swagger UI).
+Interactive API docs are available at **[/docs](http://127.0.0.1:8000/docs)** (Swagger UI) when `DEBUG=true`.
 
 ---
 
@@ -109,20 +184,25 @@ Interactive API docs are available at **[/docs](http://127.0.0.1:8000/docs)** (S
 to-do/
 ├── backend/
 │   ├── __init__.py       # Package marker
+│   ├── config.py         # Pydantic Settings (env-based config)
 │   ├── main.py           # FastAPI app, routes, middleware & lifespan
 │   ├── models.py         # SQLAlchemy ORM models (List, Task)
 │   ├── schemas.py        # Pydantic request/response schemas
 │   ├── crud.py           # Database CRUD operations
-│   └── database.py       # Engine, session & DB dependency
+│   ├── database.py       # Engine, session & DB dependency
+│   └── tests/
+│       ├── __init__.py   # Test package marker
+│       └── test_api.py   # API integration tests
 ├── frontend/
 │   ├── index.html        # Single-page app shell
 │   ├── style.css         # Neo-Minimalist design system
 │   └── app.js            # Client-side logic & API calls
-├── requirements.txt      # Python dependencies
-├── todo.db               # SQLite database (auto-generated)
+├── .env.example          # Environment variable template
+├── .gitignore            # Git tracking exclusions
+├── .dockerignore         # Docker build exclusions
+├── Dockerfile            # Container build configuration
+├── requirements.txt      # Pinned Python dependencies
 └── README.md
 ```
 
 ---
-
-

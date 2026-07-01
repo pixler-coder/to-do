@@ -655,3 +655,16 @@ body {
         opacity: 1;
     }
 }
+
+/* Noscript Fallback (CSP-safe — no inline styles) */
+.noscript-fallback {
+    padding: 40px;
+    text-align: center;
+    font-family: var(--font-family);
+    color: var(--text-muted);
+}
+
+.noscript-fallback h2 {
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}

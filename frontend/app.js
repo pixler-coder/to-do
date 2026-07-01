@@ -1,4 +1,58 @@
-// App State
+// ── API Helper with Retry Logic ──────────────────────────────────
+
+const API_MAX_RETRIES = 2;
+const API_RETRY_DELAY_MS = 500;
+
+/**
+ * Centralized fetch wrapper with automatic retry for transient failures.
+ * Retries on network errors and 5xx responses with exponential backoff.
+ */
+async function apiFetch(url, options = {}) {
+    let lastError;
+    for (let attempt = 0; attempt <= API_MAX_RETRIES; attempt++) {
+        try {
+            const response = await fetch(url, options);
+            // Don't retry client errors (4xx) — only server errors (5xx)
+            if (response.ok || (response.status >= 400 && response.status < 500)) {
+                return response;
+            }
+            lastError = new Error(`Server error: ${response.status}`);
+        } catch (err) {
+            lastError = err;
+        }
+        // Exponential backoff before retry
+        if (attempt < API_MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, API_RETRY_DELAY_MS * Math.pow(2, attempt)));
+        }
+    }
+    throw lastError;
+}
+
+// ── Debounce Guard ───────────────────────────────────────────────
+
+const _pendingActions = new Set();
+
+/**
+ * Prevents duplicate rapid submissions. Returns true if the action
+ * is already in-flight, false otherwise (and registers it).
+ */
+function isActionPending(key) {
+    if (_pendingActions.has(key)) return true;
+    _pendingActions.add(key);
+    return false;
+}
+
+function clearActionPending(key) {
+    _pendingActions.delete(key);
+}
+
+// ── Offline / Online Detection ───────────────────────────────────
+
+window.addEventListener('offline', () => showToast('You are offline — changes may not save.', 'error'));
+window.addEventListener('online', () => showToast('Back online.', 'info'));
+
+// ── App State ────────────────────────────────────────────────────
+
 let state = {
     lists: [],
     activeListId: null,
@@ -6,6 +60,9 @@ let state = {
     editingTaskId: null,
     renamingListId: null
 };
+
+// AbortController for cancelling in-flight task fetches
+let _taskFetchController = null;
 
 // DOM Elements
 const listsNav = document.getElementById('lists-nav');
@@ -25,8 +82,9 @@ async function init() {
     
     // Load previously selected space from localStorage if exists
     const storedListId = localStorage.getItem('activeListId');
-    if (storedListId && state.lists.some(l => l.id == storedListId)) {
-        state.activeListId = parseInt(storedListId);
+    const parsedId = parseInt(storedListId, 10);
+    if (!isNaN(parsedId) && state.lists.some(l => l.id === parsedId)) {
+        state.activeListId = parsedId;
     } else if (state.lists.length > 0) {
         state.activeListId = state.lists[0].id;
     }
@@ -76,7 +134,7 @@ function setupEventListeners() {
 
 async function fetchLists() {
     try {
-        const response = await fetch('/api/lists');
+        const response = await apiFetch('/api/lists');
         if (!response.ok) {
             console.error('Failed to fetch lists:', response.status);
             return;
@@ -85,12 +143,14 @@ async function fetchLists() {
         renderLists();
     } catch (err) {
         console.error('Error fetching lists:', err);
+        showToast('Failed to load spaces. Please refresh.', 'error');
     }
 }
 
 async function createList(name) {
+    if (isActionPending('createList')) return;
     try {
-        const response = await fetch('/api/lists', {
+        const response = await apiFetch('/api/lists', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
@@ -107,12 +167,15 @@ async function createList(name) {
         }
     } catch (err) {
         console.error('Error creating list:', err);
+        showToast('Network error — could not create space.', 'error');
+    } finally {
+        clearActionPending('createList');
     }
 }
 
 async function renameList(id, newName) {
     try {
-        const response = await fetch(`/api/lists/${id}`, {
+        const response = await apiFetch(`/api/lists/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newName })
@@ -129,6 +192,7 @@ async function renameList(id, newName) {
         }
     } catch (err) {
         console.error('Error renaming list:', err);
+        showToast('Network error — could not rename space.', 'error');
     }
 }
 
@@ -137,7 +201,7 @@ async function deleteList(id, name) {
         return;
     }
     try {
-        const response = await fetch(`/api/lists/${id}`, { method: 'DELETE' });
+        const response = await apiFetch(`/api/lists/${id}`, { method: 'DELETE' });
         if (response.ok) {
             state.lists = state.lists.filter(l => l.id !== id);
             if (state.activeListId === id) {
@@ -154,6 +218,7 @@ async function deleteList(id, name) {
         }
     } catch (err) {
         console.error('Error deleting list:', err);
+        showToast('Network error — could not delete space.', 'error');
     }
 }
 
@@ -163,22 +228,35 @@ async function fetchTasks() {
         taskCount.textContent = '0 tasks';
         return [];
     }
+
+    // Cancel any in-flight task fetch to prevent stale data races
+    if (_taskFetchController) {
+        _taskFetchController.abort();
+    }
+    _taskFetchController = new AbortController();
+
     try {
-        const response = await fetch(`/api/tasks?list_id=${state.activeListId}`);
+        const response = await apiFetch(`/api/tasks?list_id=${state.activeListId}`, {
+            signal: _taskFetchController.signal
+        });
         if (!response.ok) {
             console.error('Failed to fetch tasks:', response.status);
             return [];
         }
         return await response.json();
     } catch (err) {
+        // Don't show error toast for intentional aborts
+        if (err.name === 'AbortError') return [];
         console.error('Error fetching tasks:', err);
+        showToast('Failed to load tasks. Please refresh.', 'error');
         return [];
     }
 }
 
 async function createTask(title, dueDate, listId) {
+    if (isActionPending('createTask')) return;
     try {
-        const response = await fetch('/api/tasks', {
+        const response = await apiFetch('/api/tasks', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -195,12 +273,15 @@ async function createTask(title, dueDate, listId) {
         }
     } catch (err) {
         console.error('Error creating task:', err);
+        showToast('Network error — could not create task.', 'error');
+    } finally {
+        clearActionPending('createTask');
     }
 }
 
 async function toggleTaskComplete(id, isCompleted) {
     try {
-        const response = await fetch(`/api/tasks/${id}`, {
+        const response = await apiFetch(`/api/tasks/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_completed: isCompleted })
@@ -211,12 +292,13 @@ async function toggleTaskComplete(id, isCompleted) {
         updateUI();
     } catch (err) {
         console.error('Error toggling task:', err);
+        showToast('Network error — could not update task.', 'error');
     }
 }
 
 async function updateTaskDetails(id, title, dueDate, listId) {
     try {
-        const response = await fetch(`/api/tasks/${id}`, {
+        const response = await apiFetch(`/api/tasks/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -234,12 +316,13 @@ async function updateTaskDetails(id, title, dueDate, listId) {
         }
     } catch (err) {
         console.error('Error updating task:', err);
+        showToast('Network error — could not update task.', 'error');
     }
 }
 
 async function deleteTask(id) {
     try {
-        const response = await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+        const response = await apiFetch(`/api/tasks/${id}`, { method: 'DELETE' });
         if (response.ok) {
             updateUI();
         } else {
@@ -247,6 +330,7 @@ async function deleteTask(id) {
         }
     } catch (err) {
         console.error('Error deleting task:', err);
+        showToast('Network error — could not delete task.', 'error');
     }
 }
 
@@ -331,6 +415,7 @@ function renderLists() {
                 // Rename button
                 const renameBtn = document.createElement('button');
                 renameBtn.className = 'rename-list-btn';
+                renameBtn.setAttribute('aria-label', `Rename space ${list.name}`);
                 renameBtn.innerHTML = `
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -347,6 +432,7 @@ function renderLists() {
                 // Delete button
                 const delBtn = document.createElement('button');
                 delBtn.className = 'delete-list-btn';
+                delBtn.setAttribute('aria-label', `Delete space ${list.name}`);
                 delBtn.innerHTML = `
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
