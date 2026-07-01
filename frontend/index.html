@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeoTask — Minimalist Task Manager</title>
+    <meta name="description" content="A premium, distraction-free task manager with a Neo-Minimalist design philosophy.">
+    <meta name="theme-color" content="#FAF7F2">
+    <!-- Google Fonts for Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Inline SVG favicon to avoid 404 -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✦</text></svg>">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <h1>NeoTask</h1>
+            </div>
+            
+            <div class="sidebar-section">
+                <h2 class="section-title">Spaces</h2>
+                <ul id="lists-nav" class="nav-list">
+                    <!-- Dynamic Lists will go here -->
+                </ul>
+                
+                <div class="new-list-container">
+                    <input type="text" id="new-list-input" placeholder="+ New Space" maxlength="50" autocomplete="off">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-left">
+                    <h2 id="current-space-title">Inbox</h2>
+                    <span id="task-count" class="task-count">0 tasks</span>
+                </div>
+                
+                <div class="header-right">
+                    <nav class="filter-nav">
+                        <button class="filter-link active" data-filter="all">All</button>
+                        <button class="filter-link" data-filter="active">Active</button>
+                        <button class="filter-link" data-filter="completed">Completed</button>
+                    </nav>
+                </div>
+            </header>
+
+            <!-- Inline Task Creation -->
+            <section class="task-creator-section">
+                <form id="new-task-form" class="task-creator-form">
+                    <div class="creator-row">
+                        <input type="text" id="new-task-input" placeholder="Add a task... Press Enter to save" required maxlength="500" autocomplete="off">
+                    </div>
+                    <div class="creator-options">
+                        <div class="option-group">
+                            <label for="new-task-date">Due date</label>
+                            <input type="datetime-local" id="new-task-date" class="date-input">
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Spacious Task List -->
+            <section class="task-list-section">
+                <div id="tasks-list" class="tasks-list">
+                    <!-- Dynamic Tasks will go here -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
