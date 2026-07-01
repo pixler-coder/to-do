@@ -1,0 +1,15 @@
+# Netlify Configuration File
+# Reference: https://docs.netlify.com/configure-builds/file-based-configuration/
+
+[build]
+  # The directory that contains the deploy-ready static assets (HTML, CSS, JS)
+  publish = "frontend"
+
+  # The command to run during the build phase
+  command = "echo 'Building static frontend...'"
+
+[build.environment]
+  # Set Python version to 3.11 to ensure compatible pre-compiled wheels (like pydantic-core) are used.
+  # This prevents the Netlify build container from attempting to compile pydantic-core from source,
+  # which fails because the Rust compiler/Cargo is not installed in the build image.
+  PYTHON_VERSION = "3.11"
