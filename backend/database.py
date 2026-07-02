@@ -13,6 +13,7 @@ if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=_connect_args)
 
+
 # Enable SQLite foreign key enforcement — without this, ON DELETE CASCADE
 # is silently ignored because SQLite disables FK checks by default.
 @event.listens_for(engine, "connect")
@@ -21,9 +22,11 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
 
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
 
 # Dependency to get db session in path operations
 def get_db():

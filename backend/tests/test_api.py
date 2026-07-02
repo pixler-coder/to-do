@@ -13,7 +13,6 @@ from sqlalchemy.orm import sessionmaker
 from backend.database import Base, get_db
 from backend.main import app
 
-
 # ── Test Database Setup ───────────────────────────────────────────
 
 SQLALCHEMY_TEST_URL = "sqlite:///file::memory:?cache=shared&uri=true"
@@ -22,11 +21,13 @@ test_engine = create_engine(
     SQLALCHEMY_TEST_URL, connect_args={"check_same_thread": False}
 )
 
+
 @event.listens_for(test_engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+
 
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
@@ -61,6 +62,7 @@ client = TestClient(app, raise_server_exceptions=False)
 
 # ── Health Check ──────────────────────────────────────────────────
 
+
 class TestHealthCheck:
     def test_health_returns_ok(self):
         response = client.get("/api/health")
@@ -69,6 +71,7 @@ class TestHealthCheck:
 
 
 # ── Security Headers ─────────────────────────────────────────────
+
 
 class TestSecurityHeaders:
     def test_x_content_type_options(self):
@@ -85,7 +88,10 @@ class TestSecurityHeaders:
 
     def test_permissions_policy(self):
         response = client.get("/api/health")
-        assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+        assert (
+            response.headers["Permissions-Policy"]
+            == "camera=(), microphone=(), geolocation=()"
+        )
 
     def test_server_header_overridden(self):
         response = client.get("/api/health")
@@ -97,6 +103,7 @@ class TestSecurityHeaders:
 
 
 # ── List CRUD ─────────────────────────────────────────────────────
+
 
 class TestLists:
     def test_create_list(self):
@@ -160,7 +167,7 @@ class TestLists:
         assert response.status_code == 200
         # Verify it's gone
         lists = client.get("/api/lists").json()
-        assert not any(l["id"] == list_id for l in lists)
+        assert not any(lst["id"] == list_id for lst in lists)
 
     def test_delete_nonexistent_list(self):
         response = client.delete("/api/lists/9999")
@@ -171,7 +178,9 @@ class TestLists:
         assert response.status_code == 422
 
     def test_create_list_whitespace_only_name_fails(self):
-        """Whitespace-only names should fail validation with a 422 Unprocessable Entity."""
+        """
+        Whitespace-only names should fail validation with a 422 Unprocessable Entity.
+        """
         response = client.post("/api/lists", json={"name": "   "})
         assert response.status_code == 422
 
@@ -202,6 +211,7 @@ class TestLists:
 
 # ── Task CRUD ─────────────────────────────────────────────────────
 
+
 class TestTasks:
     def _create_list(self, name="Test List"):
         resp = client.post("/api/lists", json={"name": name})
@@ -209,10 +219,9 @@ class TestTasks:
 
     def test_create_task(self):
         list_id = self._create_list()
-        response = client.post("/api/tasks", json={
-            "title": "Buy groceries",
-            "list_id": list_id
-        })
+        response = client.post(
+            "/api/tasks", json={"title": "Buy groceries", "list_id": list_id}
+        )
         assert response.status_code == 201
         data = response.json()
         assert data["title"] == "Buy groceries"
@@ -220,36 +229,34 @@ class TestTasks:
 
     def test_create_task_with_due_date(self):
         list_id = self._create_list()
-        response = client.post("/api/tasks", json={
-            "title": "Meeting",
-            "list_id": list_id,
-            "due_date": "2026-12-25T10:00:00"
-        })
+        response = client.post(
+            "/api/tasks",
+            json={
+                "title": "Meeting",
+                "list_id": list_id,
+                "due_date": "2026-12-25T10:00:00",
+            },
+        )
         assert response.status_code == 201
         assert response.json()["due_date"] is not None
 
     def test_create_task_invalid_list_fails(self):
-        response = client.post("/api/tasks", json={
-            "title": "Orphan task",
-            "list_id": 9999
-        })
+        response = client.post(
+            "/api/tasks", json={"title": "Orphan task", "list_id": 9999}
+        )
         assert response.status_code == 404
 
     def test_create_task_empty_title_fails(self):
         list_id = self._create_list()
-        response = client.post("/api/tasks", json={
-            "title": "",
-            "list_id": list_id
-        })
+        response = client.post("/api/tasks", json={"title": "", "list_id": list_id})
         assert response.status_code == 422
 
     def test_create_task_over_max_title_fails(self):
         """Titles over 500 characters should be rejected."""
         list_id = self._create_list()
-        response = client.post("/api/tasks", json={
-            "title": "X" * 501,
-            "list_id": list_id
-        })
+        response = client.post(
+            "/api/tasks", json={"title": "X" * 501, "list_id": list_id}
+        )
         assert response.status_code == 422
 
     def test_read_tasks_filtered_by_list(self):
@@ -282,10 +289,9 @@ class TestTasks:
 
     def test_toggle_task_complete(self):
         list_id = self._create_list()
-        create_resp = client.post("/api/tasks", json={
-            "title": "Do laundry",
-            "list_id": list_id
-        })
+        create_resp = client.post(
+            "/api/tasks", json={"title": "Do laundry", "list_id": list_id}
+        )
         task_id = create_resp.json()["id"]
 
         # Mark complete
@@ -299,26 +305,24 @@ class TestTasks:
 
     def test_update_task_details(self):
         list_id = self._create_list()
-        create_resp = client.post("/api/tasks", json={
-            "title": "Original title",
-            "list_id": list_id
-        })
+        create_resp = client.post(
+            "/api/tasks", json={"title": "Original title", "list_id": list_id}
+        )
         task_id = create_resp.json()["id"]
 
-        response = client.put(f"/api/tasks/{task_id}", json={
-            "title": "Updated title",
-            "due_date": "2026-06-15T09:00:00"
-        })
+        response = client.put(
+            f"/api/tasks/{task_id}",
+            json={"title": "Updated title", "due_date": "2026-06-15T09:00:00"},
+        )
         assert response.status_code == 200
         assert response.json()["title"] == "Updated title"
 
     def test_move_task_to_another_list(self):
         list_a = self._create_list("Source")
         list_b = self._create_list("Destination")
-        create_resp = client.post("/api/tasks", json={
-            "title": "Movable",
-            "list_id": list_a
-        })
+        create_resp = client.post(
+            "/api/tasks", json={"title": "Movable", "list_id": list_a}
+        )
         task_id = create_resp.json()["id"]
 
         response = client.put(f"/api/tasks/{task_id}", json={"list_id": list_b})
@@ -328,20 +332,18 @@ class TestTasks:
     def test_move_task_to_invalid_list_fails(self):
         """Moving a task to a non-existent list should fail."""
         list_id = self._create_list()
-        create_resp = client.post("/api/tasks", json={
-            "title": "Stuck",
-            "list_id": list_id
-        })
+        create_resp = client.post(
+            "/api/tasks", json={"title": "Stuck", "list_id": list_id}
+        )
         task_id = create_resp.json()["id"]
         response = client.put(f"/api/tasks/{task_id}", json={"list_id": 9999})
         assert response.status_code == 404
 
     def test_delete_task(self):
         list_id = self._create_list()
-        create_resp = client.post("/api/tasks", json={
-            "title": "Ephemeral",
-            "list_id": list_id
-        })
+        create_resp = client.post(
+            "/api/tasks", json={"title": "Ephemeral", "list_id": list_id}
+        )
         task_id = create_resp.json()["id"]
 
         response = client.delete(f"/api/tasks/{task_id}")
