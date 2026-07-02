@@ -89,7 +89,7 @@ async function init() {
         state.activeListId = state.lists[0].id;
     }
     
-    updateUI();
+    await updateUI();
 }
 
 // Event Listeners Setup
@@ -121,11 +121,11 @@ function setupEventListeners() {
 
     // Filter switching
     filterLinks.forEach(link => {
-        link.addEventListener('click', (e) => {
+        link.addEventListener('click', async (e) => {
             filterLinks.forEach(l => l.classList.remove('active'));
             e.target.classList.add('active');
             state.activeFilter = e.target.dataset.filter;
-            renderTasks();
+            await renderTasks();
         });
     });
 }
@@ -336,7 +336,7 @@ async function deleteTask(id) {
 
 // --- Render / UI Updates ---
 
-function updateUI() {
+async function updateUI() {
     renderLists();
     
     // Update Active List Header
@@ -349,7 +349,7 @@ function updateUI() {
         newTaskInput.placeholder = 'Select a space first';
     }
     
-    renderTasks();
+    await renderTasks();
 }
 
 function renderLists() {
